@@ -8,45 +8,46 @@ from astrbot.api.star import Context, Star, register
 from astrbot.api import logger, AstrBotConfig
 from astrbot.core.utils.session_waiter import session_waiter, SessionController
 
-# --- 最终优化版: 静态决策结果卡的 HTML + CSS 模板 ---
+# --- 最终美化版: 静态决策结果卡的 HTML + CSS 模板 ---
 RESULT_CARD_TEMPLATE = """
 <!DOCTYPE html>
 <html>
 <head>
 <meta charset="UTF-8">
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&family=Noto+Sans+SC:wght@400;700&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@500;700&family=Noto+Sans+SC:wght@400;700&display=swap');
     body { 
         font-family: 'Poppins', 'Noto Sans SC', sans-serif; 
-        background: #e0e5ec;
+        background-color: #f4f7fe;
         margin: 0;
-        padding: 20px;
+        padding: 24px;
         display: flex;
         justify-content: center;
         align-items: center;
-        min-height: 350px;
     }
     .card {
-        background: #e0e5ec;
-        border-radius: 20px;
-        box-shadow: 9px 9px 16px #a3b1c6, -9px -9px 16px #ffffff;
-        width: 480px;
-        padding: 30px;
+        background: #ffffff;
+        border-radius: 24px;
+        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.08);
+        width: 500px;
+        padding: 32px;
+        border: 1px solid #f0f0f0;
     }
     .header {
         text-align: center;
-        margin-bottom: 25px;
+        margin-bottom: 28px;
     }
     .header h1 {
-        font-size: 26px;
-        color: #4b5a7a;
+        font-size: 28px;
+        color: #1a202c;
         margin: 0;
-        font-weight: 600;
+        font-weight: 700;
+        letter-spacing: 1px;
     }
     .header p {
-        font-size: 14px;
-        color: #8c96a5;
-        margin-top: 5px;
+        font-size: 15px;
+        color: #718096;
+        margin-top: 6px;
     }
     .options-list {
         margin: 0;
@@ -54,50 +55,53 @@ RESULT_CARD_TEMPLATE = """
         list-style: none;
     }
     .options-list li {
-        font-size: 16px;
-        padding: 12px 20px;
+        font-size: 17px;
+        padding: 16px 20px;
         margin-bottom: 12px;
-        border-radius: 10px;
-        color: #4b5a7a;
-        background: #e0e5ec;
-        box-shadow: inset 5px 5px 10px #a3b1c6, inset -5px -5px 10px #ffffff;
+        border-radius: 12px;
+        color: #4a5568;
+        background-color: #f7fafc;
+        border: 1px solid #edf2f7;
+        font-weight: 500;
         transition: all 0.2s ease-in-out;
     }
     .result {
-        color: #ffffff !important;
+        color: white !important;
         font-weight: 700;
-        background: linear-gradient(145deg, #5b24ff, #8f6afe);
-        box-shadow: 5px 5px 10px #a3b1c6, -5px -5px 10px #ffffff;
-        transform: scale(1.03);
+        background: linear-gradient(90deg, #5e72e4 0%, #825ee4 100%);
+        box-shadow: 0 8px 20px rgba(94, 114, 228, 0.4);
+        border: none;
         position: relative;
     }
-    .result::after {
-        content: '🎯';
+    .result::before {
+        content: '👑';
         position: absolute;
-        right: 20px;
+        left: 20px;
         top: 50%;
-        transform: translateY(-50%) scale(1.2);
-        animation: tada 1s ease-in-out;
+        transform: translateY(-50%);
+        font-size: 20px;
+        animation: breath 2s ease-in-out infinite;
     }
-    @keyframes tada {
-        0% {transform: translateY(-50%) scale(1.2);}
-        10%, 20% {transform: translateY(-50%) scale(1.1) rotate(-3deg);}
-        30%, 50%, 70%, 90% {transform: translateY(-50%) scale(1.3) rotate(3deg);}
-        40%, 60%, 80% {transform: translateY(-50%) scale(1.3) rotate(-3deg);}
-        100% {transform: translateY(-50%) scale(1.2) rotate(0);}
+    .result span {
+        display: block;
+        margin-left: 35px; /* 为皇冠留出空间 */
+    }
+    @keyframes breath {
+        0%, 100% { transform: translateY(-50%) scale(1); }
+        50% { transform: translateY(-50%) scale(1.15); }
     }
 </style>
 </head>
 <body>
     <div class="card">
         <div class="header">
-            <h1>天选之子</h1>
-            <p>命运的轮盘已为你停下</p>
+            <h1>最终决定</h1>
+            <p>一切皆是命运石之门的选择</p>
         </div>
         <ul class="options-list">
             {% for option in options %}
                 {% if option == result %}
-                    <li class="result">{{ option }}</li>
+                    <li class="result"><span>{{ option }}</span></li>
                 {% else %}
                     <li>{{ option }}</li>
                 {% endif %}
@@ -120,6 +124,8 @@ class DecisionRoulettePlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig = None):
         super().__init__(context)
         self.config = config if config else {}
+        self.command_blacklist = frozenset(["decide", "决定", "抽奖"])
+
 
     @filter.command("decide", alias={"决定", "抽奖"})
     async def decide_starter(self, event: AstrMessageEvent):
@@ -167,13 +173,15 @@ class DecisionRoulettePlugin(Star):
                 logger.error(f"决策会话出错: {e}")
                 yield event.plain_result("会话出现未知错误。")
 
-        if len(options_list) < 2:
-            yield event.plain_result("至少需要两个选项才能开始决策。")
+        final_options = [opt for opt in options_list if opt.lower() not in self.command_blacklist]
+
+        if len(final_options) < 2:
+            yield event.plain_result("有效选项不足两个（已自动过滤命令本身），无法开始决策。")
             return
 
-        result = random.choice(options_list)
+        result = random.choice(final_options)
         
-        data = { "options": options_list, "result": result }
+        data = { "options": final_options, "result": result }
         
         try:
             image_url = await self.html_render(RESULT_CARD_TEMPLATE, data)
