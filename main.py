@@ -59,24 +59,26 @@ ROULETTE_TEMPLATE = """
 )
 class DecisionRoulettePlugin(Star):
 
-    def __init__(self, context: Context, config: AstrBotConfig):
+    def __init__(self, context: Context, config: AstrBotConfig = None):
+        """
+        最终修正版 __init__。
+        将 config 参数标记为可选，并正确处理其可能为 None 的情况。
+        """
         super().__init__(context)
-        self.config = config
+        self.config = config if config else {} # 关键修正：如果 config 为 None，则初始化为空字典
 
     @filter.command("decide", alias={"决定", "抽奖"})
     async def decide_starter(self, event: AstrMessageEvent, options_str: str = ""):
         """
         发起一个决策。可以直接提供选项，也可以进入交互模式。
         """
-        # --- 修正点: 将传入的 options_str 处理成列表 ---
-        # 移除可能存在的用户误输入（例如引号），然后按空格分割
+        # --- 最终修正点: 使用 .get() 方法安全地从配置中获取值 ---
+        max_options = self.config.get("max_options", 12)
+        timeout = self.config.get("session_timeout", 60)
+
         options_str_cleaned = options_str.strip().strip('"').strip("'")
         options_list = [opt for opt in options_str_cleaned.split() if opt] if options_str_cleaned else []
         
-        max_options = self.config.get_config("max_options", 12)
-        timeout = self.config.get_config("session_timeout", 60)
-
-        # 如果用户没有直接提供选项，则进入交互式会话收集模式
         if not options_list:
             try:
                 @session_waiter(timeout=timeout)
@@ -106,12 +108,10 @@ class DecisionRoulettePlugin(Star):
                 logger.error(f"决策会话出错: {e}")
                 yield event.plain_result("会话出现未知错误。")
 
-        # 检查最终的选项列表
         if len(options_list) < 2:
             yield event.plain_result("至少需要两个选项才能开始决策。")
             return
 
-        # --- 轮盘渲染逻辑 (保持不变) ---
         result = random.choice(options_list)
         result_index = options_list.index(result)
         num_options = len(options_list)
@@ -129,8 +129,6 @@ class DecisionRoulettePlugin(Star):
         }
         
         try:
-            # 这里的 render_type 和 render_params 是为了示意，具体可用参数取决于 AstrBot 的实现
-            # 我们假设等待5秒以完成CSS动画，然后截取为动图
             image_url = await self.html_render(ROULETTE_TEMPLATE, data, render_type="gif", render_params={"wait_time": 5000})
             yield event.image_result(image_url)
         except Exception as e:
