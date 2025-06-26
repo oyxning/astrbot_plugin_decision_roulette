@@ -7,7 +7,7 @@ from astrbot.api.star import Context, Star, register
 from astrbot.api import logger, AstrBotConfig
 from astrbot.core.utils.session_waiter import session_waiter, SessionController
 
-# --- 最终修正版: 静态决策结果卡的 HTML + CSS 模板 ---
+# --- 静态决策结果卡的 HTML + CSS 模板 (内容不变) ---
 RESULT_CARD_TEMPLATE = """
 <!DOCTYPE html>
 <html>
@@ -98,14 +98,20 @@ class DecisionRoulettePlugin(Star):
         self.config = config if config else {}
 
     @filter.command("decide", alias={"决定", "抽奖"})
-    async def decide_starter(self, event: AstrMessageEvent, options_str: str = ""):
+    async def decide_starter(self, event: AstrMessageEvent):
+        """
+        发起一个决策。
+        最终修正：函数签名只保留 self 和 event，完全杜绝参数注入错误。
+        """
         max_options = self.config.get("max_options", 12)
         timeout = self.config.get("session_timeout", 60)
 
-        options_str_cleaned = options_str.strip().strip('"').strip("'")
-        options_list = [opt for opt in options_str_cleaned.split() if opt] if options_str_cleaned else []
+        # --- 最终根治性修正: 直接从 event.message_str 获取所有参数 ---
+        options_str = event.message_str
+        options_list = [opt for opt in options_str.split() if opt] if options_str else []
         
         if not options_list:
+            # 进入交互模式
             try:
                 @session_waiter(timeout=timeout)
                 async def collect_options(controller: SessionController, sub_event: AstrMessageEvent):
@@ -134,19 +140,16 @@ class DecisionRoulettePlugin(Star):
                 logger.error(f"决策会话出错: {e}")
                 yield event.plain_result("会话出现未知错误。")
 
+        # 检查最终选项列表
         if len(options_list) < 2:
             yield event.plain_result("至少需要两个选项才能开始决策。")
             return
 
         result = random.choice(options_list)
         
-        data = {
-            "options": options_list,
-            "result": result
-        }
+        data = { "options": options_list, "result": result }
         
         try:
-            # --- 最终修正点: 调用 html_render 时只使用文档支持的参数 ---
             image_url = await self.html_render(RESULT_CARD_TEMPLATE, data)
             yield event.image_result(image_url)
         except Exception as e:
