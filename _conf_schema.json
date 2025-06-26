@@ -1,0 +1,14 @@
+{
+  "session_timeout": {
+    "type": "int",
+    "description": "选项收集会话的超时时间（秒）",
+    "hint": "用户发起决策后，在此时间内可以添加选项。超过时间后会话自动结束。",
+    "default": 60
+  },
+  "max_options": {
+    "type": "int",
+    "description": "一个决策轮盘最多支持的选项数量",
+    "hint": "防止选项过多导致轮盘显示效果不佳。",
+    "default": 12
+  }
+}
