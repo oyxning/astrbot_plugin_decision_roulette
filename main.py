@@ -7,45 +7,79 @@ from astrbot.api.star import Context, Star, register
 from astrbot.api import logger, AstrBotConfig
 from astrbot.core.utils.session_waiter import session_waiter, SessionController
 
-# --- 动态决策轮盘的 HTML + CSS + JS 模板 (内容不变) ---
-ROULETTE_TEMPLATE = """
+# --- 最终修正版: 静态决策结果卡的 HTML + CSS 模板 ---
+RESULT_CARD_TEMPLATE = """
 <!DOCTYPE html>
 <html>
 <head>
 <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; background-color: #f0f2f5; margin: 0; }
-    .wheel-container { text-align: center; }
-    .wheel { position: relative; width: 400px; height: 400px; border-radius: 50%; border: 10px solid #fff; box-shadow: 0 0 20px rgba(0,0,0,0.2); overflow: hidden; transition: transform 4s cubic-bezier(0.25, 1, 0.5, 1); }
-    .segment { position: absolute; width: 50%; height: 50%; left: 50%; top: 50%; transform-origin: 0% 100%; display: flex; justify-content: center; align-items: center; }
-    .segment span { display: block; transform: rotate(45deg); font-weight: bold; color: #333; padding-right: 40px; }
-    .pointer { position: absolute; left: 50%; top: -10px; transform: translateX(-50%); width: 0; height: 0; border-left: 20px solid transparent; border-right: 20px solid transparent; border-top: 30px solid #e74c3c; z-index: 10; }
-    h1 { color: #333; margin-top: 20px; }
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;700&display=swap');
+    body { 
+        font-family: 'Noto Sans SC', sans-serif; 
+        background-color: #f7f9fc;
+        margin: 0;
+        padding: 20px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 300px;
+    }
+    .card {
+        background: white;
+        border-radius: 16px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        width: 450px;
+        padding: 25px;
+        border: 1px solid #eef;
+    }
+    .header {
+        text-align: center;
+        border-bottom: 2px solid #f0f0f0;
+        padding-bottom: 15px;
+        margin-bottom: 20px;
+    }
+    .header h1 {
+        font-size: 24px;
+        color: #333;
+        margin: 0;
+    }
+    .options-list {
+        margin: 0;
+        padding: 0;
+        list-style: none;
+    }
+    .options-list li {
+        font-size: 16px;
+        padding: 10px 15px;
+        margin-bottom: 8px;
+        border-radius: 8px;
+        background-color: #f7f9fc;
+        color: #555;
+    }
+    .result {
+        background: linear-gradient(45deg, #6a82fb, #fc5c7d);
+        color: white !important;
+        font-weight: 700;
+        transform: scale(1.05);
+        box-shadow: 0 4px 15px rgba(252, 92, 125, 0.4);
+    }
 </style>
 </head>
 <body>
-    <div class="wheel-container">
-        <div class="pointer"></div>
-        <div class="wheel" id="wheel">
-            {% for i in range(options|length) %}
-            <div class="segment" style="transform: rotate({{ i * (360 / (options|length)) }}deg); background-color: {{ colors[i % colors|length] }};">
-                <span>{{ options[i] }}</span>
-            </div>
-            {% endfor %}
+    <div class="card">
+        <div class="header">
+            <h1>命运的抉择！</h1>
         </div>
-        <h1 id="result"></h1>
+        <ul class="options-list">
+            {% for option in options %}
+                {% if option == result %}
+                    <li class="result">✨ {{ option }} ✨</li>
+                {% else %}
+                    <li>{{ option }}</li>
+                {% endif %}
+            {% endfor %}
+        </ul>
     </div>
-    <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            const wheel = document.getElementById('wheel');
-            const finalRotation = {{ final_rotation }};
-            setTimeout(() => {
-                wheel.style.transform = `rotate(${finalRotation}deg)`;
-            }, 100);
-            setTimeout(() => {
-                document.getElementById('result').innerText = '最终决定是：{{ result }}';
-            }, 4500);
-        });
-    </script>
 </body>
 </html>
 """
@@ -53,26 +87,18 @@ ROULETTE_TEMPLATE = """
 @register(
     "decision_roulette",
     "luminestory",
-    "一个通过动态轮盘帮助用户做决策的趣味实用插件",
+    "一个通过静态卡片帮助用户做决策的趣味实用插件",
     "1.0.0",
     "https://github.com/oyxning/astrbot_plugin_decision_roulette"
 )
 class DecisionRoulettePlugin(Star):
 
     def __init__(self, context: Context, config: AstrBotConfig = None):
-        """
-        最终修正版 __init__。
-        将 config 参数标记为可选，并正确处理其可能为 None 的情况。
-        """
         super().__init__(context)
-        self.config = config if config else {} # 关键修正：如果 config 为 None，则初始化为空字典
+        self.config = config if config else {}
 
     @filter.command("decide", alias={"决定", "抽奖"})
     async def decide_starter(self, event: AstrMessageEvent, options_str: str = ""):
-        """
-        发起一个决策。可以直接提供选项，也可以进入交互模式。
-        """
-        # --- 最终修正点: 使用 .get() 方法安全地从配置中获取值 ---
         max_options = self.config.get("max_options", 12)
         timeout = self.config.get("session_timeout", 60)
 
@@ -113,27 +139,19 @@ class DecisionRoulettePlugin(Star):
             return
 
         result = random.choice(options_list)
-        result_index = options_list.index(result)
-        num_options = len(options_list)
-        segment_angle = 360 / num_options
-        
-        final_rotation = (5 * 360) + (360 - (result_index * segment_angle)) - (segment_angle / 2)
-        
-        colors = ["#ffcdd2", "#c8e6c9", "#bbdefb", "#fff9c4", "#d1c4e9", "#b2dfdb"]
         
         data = {
             "options": options_list,
-            "result": result,
-            "final_rotation": final_rotation,
-            "colors": colors
+            "result": result
         }
         
         try:
-            image_url = await self.html_render(ROULETTE_TEMPLATE, data, render_type="gif", render_params={"wait_time": 5000})
+            # --- 最终修正点: 调用 html_render 时只使用文档支持的参数 ---
+            image_url = await self.html_render(RESULT_CARD_TEMPLATE, data)
             yield event.image_result(image_url)
         except Exception as e:
-            logger.error(f"渲染决策轮盘失败: {e}")
-            yield event.plain_result(f"渲染轮盘时出错，但随机结果是：**{result}**")
+            logger.error(f"渲染决策卡片失败: {e}")
+            yield event.plain_result(f"渲染卡片时出错，但随机结果是：**{result}**")
 
     async def terminate(self):
         logger.info("决策轮盘插件已卸载。")
