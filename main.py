@@ -7,7 +7,7 @@ from astrbot.api.star import Context, Star, register
 from astrbot.api import logger, AstrBotConfig
 from astrbot.core.utils.session_waiter import session_waiter, SessionController
 
-# --- 动态决策轮盘的 HTML + CSS + JS 模板 ---
+# --- 动态决策轮盘的 HTML + CSS + JS 模板 (内容不变) ---
 ROULETTE_TEMPLATE = """
 <!DOCTYPE html>
 <html>
@@ -64,18 +64,21 @@ class DecisionRoulettePlugin(Star):
         self.config = config
 
     @filter.command("decide", alias={"决定", "抽奖"})
-    async def decide_starter(self, event: AstrMessageEvent, *options: str):
+    async def decide_starter(self, event: AstrMessageEvent, options_str: str = ""):
         """
         发起一个决策。可以直接提供选项，也可以进入交互模式。
         """
-        options_list = list(options)
+        # --- 修正点: 将传入的 options_str 处理成列表 ---
+        # 移除可能存在的用户误输入（例如引号），然后按空格分割
+        options_str_cleaned = options_str.strip().strip('"').strip("'")
+        options_list = [opt for opt in options_str_cleaned.split() if opt] if options_str_cleaned else []
+        
         max_options = self.config.get_config("max_options", 12)
         timeout = self.config.get_config("session_timeout", 60)
 
         # 如果用户没有直接提供选项，则进入交互式会话收集模式
         if not options_list:
             try:
-                # 使用 session_waiter 进行交互式选项收集
                 @session_waiter(timeout=timeout)
                 async def collect_options(controller: SessionController, sub_event: AstrMessageEvent):
                     nonlocal options_list
@@ -108,17 +111,14 @@ class DecisionRoulettePlugin(Star):
             yield event.plain_result("至少需要两个选项才能开始决策。")
             return
 
-        # --- 开始执行轮盘渲染 ---
+        # --- 轮盘渲染逻辑 (保持不变) ---
         result = random.choice(options_list)
         result_index = options_list.index(result)
         num_options = len(options_list)
         segment_angle = 360 / num_options
         
-        # 计算最终旋转角度
-        # 至少转5圈，再加上指向结果的角度，减去半个扇形角度以使其居中
         final_rotation = (5 * 360) + (360 - (result_index * segment_angle)) - (segment_angle / 2)
         
-        # 预设一些鲜艳的颜色
         colors = ["#ffcdd2", "#c8e6c9", "#bbdefb", "#fff9c4", "#d1c4e9", "#b2dfdb"]
         
         data = {
@@ -129,8 +129,8 @@ class DecisionRoulettePlugin(Star):
         }
         
         try:
-            # 调用 html_render 生成动态图片（通常会是GIF或视频）
-            # 注意：实际输出格式取决于 AstrBot 的渲染器实现
+            # 这里的 render_type 和 render_params 是为了示意，具体可用参数取决于 AstrBot 的实现
+            # 我们假设等待5秒以完成CSS动画，然后截取为动图
             image_url = await self.html_render(ROULETTE_TEMPLATE, data, render_type="gif", render_params={"wait_time": 5000})
             yield event.image_result(image_url)
         except Exception as e:
