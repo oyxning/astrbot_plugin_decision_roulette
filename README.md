@@ -41,3 +41,9 @@
 作者: luminestory
 仓库: https://github.com/oyxning/astrbot_plugin_decision_roulette
 版本: 1.0.0
+
+## 💡 另：插件反馈群
+
+由于作者持续的那么一个懒，平常不会及时的看issues，所以开了个QQ反馈群方便用户及时的拷打作者。
+* 群号：928985352       
+* 进群密码：神人desuwa
