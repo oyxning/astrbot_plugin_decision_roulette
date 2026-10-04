@@ -1,4 +1,4 @@
-# AstrBot 插件：决策轮盘
+﻿# AstrBot 插件：决策轮盘
 
 一个有趣且实用的插件，通过一张精美的**静态结果卡片**帮助用户做出决策。非常适合在群聊中决定共同活动，或帮助个人解决“选择困难症”。
 
@@ -42,8 +42,7 @@
 仓库: https://github.com/oyxning/astrbot_plugin_decision_roulette
 版本: 1.0.0
 
-## 💡 另：插件反馈群
+## 💡 联系作者
 
-由于作者持续的那么一个懒，平常不会及时的看issues，所以开了个QQ反馈群方便用户及时的拷打作者。
-点击链接加入群聊【Astrbot Plugin 猫娘乐园】：https://qm.qq.com/q/dBWQXCpwnm
+如有紧急问题，请联系邮箱：shy0074@tongujiyu.cn
 
